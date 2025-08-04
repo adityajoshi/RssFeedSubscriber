@@ -1,7 +1,8 @@
 # RSS Feed Subscriber
 
 ## Overview
-RSS Feed Subscriber is a Spring Boot command-line application that allows users to save RSS feed details into an Oracle database. The application takes feed details as input arguments and inserts them into the `FEED_SOURCE` table.
+RSS Feed Subscriber is a Spring Boot command-line application that allows users to save RSS feed details into an Oracle database. 
+The application takes feed details as input arguments and inserts them into the `FEED_SOURCE` table.
 
 ## Features
 - Accepts feed name, feed URL, and optional category as input arguments.
