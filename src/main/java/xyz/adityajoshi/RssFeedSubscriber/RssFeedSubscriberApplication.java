@@ -35,3 +35,4 @@ public class RssFeedSubscriberApplication implements CommandLineRunner {
 		service.saveFeedSource(feedName, feedUrl, category);
 	}
 }
+
