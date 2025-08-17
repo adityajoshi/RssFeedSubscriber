@@ -1,0 +1,92 @@
+name: Deploy Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      version:
+        description: 'Docker image tag to deploy'
+        required: true
+        default: 'latest'
+
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+        
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
+        export KUBECONFIG=kubeconfig.yaml
+        
+    - name: Deploy to ${{ github.event.inputs.environment }}
+      run: |
+        export KUBECONFIG=kubeconfig.yaml
+        
+        # Update the deployment with the new image tag
+        kubectl set image deployment/rss-feed-subscriber \
+          rss-feed-subscriber=${{ secrets.DOCKER_USERNAME }}/rss-feed-subscriber:${{ github.event.inputs.version }} \
+          --namespace=${{ github.event.inputs.environment }}
+        
+        # Wait for deployment to complete
+        kubectl rollout status deployment/rss-feed-subscriber \
+          --namespace=${{ github.event.inputs.environment }} \
+          --timeout=300s
+        
+    - name: Verify deployment
+      run: |
+        export KUBECONFIG=kubeconfig.yaml
+        
+        # Check if pods are running
+        kubectl get pods --namespace=${{ github.event.inputs.environment }} \
+          -l app=rss-feed-subscriber
+        
+        # Check service status
+        kubectl get svc --namespace=${{ github.event.inputs.environment }} \
+          -l app=rss-feed-subscriber
+        
+    - name: Run smoke tests
+      run: |
+        export KUBECONFIG=kubeconfig.yaml
+        
+        # Get the service URL
+        SERVICE_URL=$(kubectl get svc rss-feed-subscriber-service \
+          --namespace=${{ github.event.inputs.environment }} \
+          -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        
+        # Wait for service to be ready
+        sleep 30
+        
+        # Run basic health check
+        curl -f http://$SERVICE_URL/actuator/health || exit 1
+        
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "✅ Successfully deployed to ${{ github.event.inputs.environment }}"
+        # Add notification logic here (Slack, Teams, etc.)
+        
+    - name: Notify deployment failure
+      if: failure()
+      run: |
+        echo "❌ Deployment to ${{ github.event.inputs.environment }} failed"
+        # Add failure notification logic here 
